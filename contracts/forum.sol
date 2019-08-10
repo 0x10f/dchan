@@ -14,9 +14,9 @@ contract Forum {
     // thread. See the Thread documentation for more information.
     mapping(uint256 => Thread) threads;
 
-    // Posts is all of the posts that are contained within the forum. Posts are mapped
-    // by their identifier which is determined from a hash of the fields. See the
-    // Post documentation for more information.
+    // Fragment is all of the post fragments that are contained within the forum. Fragments
+    // are mapped by their identifier which is determined from a hash of the fields. See the
+    // Fragment documentation for more information.
     mapping(uint256 => Fragment) fragments;
 
     // Nonce is the highest known nonce that was sent to the network for an address. It
@@ -64,15 +64,15 @@ contract Forum {
 
     // Identifier
     // ----------
-    // The identifier of a post is determinable off-chain even before publishing
-    // the post on-chain. This allows posts to have a universally unique identifier
+    // The identifier of a fragment is determinable off-chain even before publishing
+    // the fragment on-chain. This allows posts to have a universally unique identifier
     // that is dependant on: the author, the parent, the child, the contents, and
     // the nonce. The identifier is calculated as follows:
     //
-    // id = keccak(post.author, post.thread, post.parent, post.child, post.contents, post.nonce)
+    // id := keccak(post.author, post.thread, post.parent, post.child, post.contents, post.nonce)
     //
-    // The parent and child are included to stop 'piggy backing'. Suppose a post
-    // chain is published and at a future time someone publishes a post that
+    // The parent and child are included to stop 'piggy backing'. Suppose a
+    // fragment is published and at a future time someone publishes a post that
     // reuses a post in the chain that is neither the head or tail. If the
     // child and parent were not present it would be possible to extend (fork)
     // peoples posts, but because to publish a post the post must be the child
@@ -83,19 +83,20 @@ contract Forum {
     //
     // Chains
     // ------
-    // Posts an optionally doubly linked list structure which allows for single
-    // longer submissions to be published. It is assumed if a post is an ancestor
-    // or descendant of one another they belong to the same submission.
+    // Fragments an optionally doubly linked list structure which allows for single
+    // longer submissions to be published. It is assumed if a fragment is an ancestor
+    // or descendant of one another they belong to the same post.
     //
     // This is designed this way to break apart the unit of work of what it takes
-    // to publish a submission.
+    // to publish a post.
     //
     // Publishing
     // ----------
     // To be successfully published:
-    // - The post must not already exist (two posts cannot have the same ID).
-    // - When the post is not the head of the chain, its parent must exist and the parents child must be the post.
-    // - In addition to the previous condition, the parents thread must be the same.
+    // - The fragment must not already exist (two posts cannot have the same ID).
+    // - When the fragment is not the head of the chain, its parent must exist and the parents child must be the
+    //   to be published fragment's id.
+    // - The parent fragments thread, if the parent is set, must be the same as the fragment.
     // - The contents must meet the required standards.
     //
     // There is an additional requirement for delegated publishing that the
@@ -104,8 +105,7 @@ contract Forum {
         // Author is the address who published the post.
         address author;
 
-        // Thread is the identifier of the thread that the post belongs to.
-        // When this value is zero then this post is the head or first post of the thread.
+        // Thread is the identifier of the thread that the fragment belongs to.
         uint256 thread;
 
         // Parent is the previous post in the chain. When this value is zero then this post is the head of the chain.
@@ -130,14 +130,14 @@ contract Forum {
         uint256 index;
     }
 
-    // GetHead returns the fragment which is the head of a post chain. If the head cannot
-    // be determined then this function returns 0.
+    // GetHead returns the fragment which is the head of a post. If the head cannot be determined then this
+    // function returns 0.
     function getPostHead(uint256 fragmentID) view returns (uint256) {
         return 0;
     }
 
-    // GetTail returns the fragment which is the tail of a post chain. If the tail cannot
-    // be determined then this function returns 0.
+    // GetTail returns the fragment which is the tail of a post. If the tail cannot be determined then this
+    // function returns 0.
     function getPostTail(uint256 fragmentID) view returns (uint256) {
         return 0;
     }
