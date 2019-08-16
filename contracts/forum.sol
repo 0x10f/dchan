@@ -49,6 +49,27 @@ contract DChan {
     uint32 private constant NULL_REF = 0xffffffff;
     bytes32 private constant NULL_WORD = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
 
+    uint256 private constant FLAG_POST_AUTHOR  = 0x01;
+    uint256 private constant FLAG_POST_NEXT    = 0x02;
+    uint256 private constant FLAG_POST_PAGE = 0x04;
+    uint256 private constant FLAG_POST_OFFSET  = 0x08;
+    uint256 private constant FLAG_POST_LENGTH  = 0x10;
+
+    uint256 private constant MASK_POST_AUTHOR  = 0xffffffffffffffffffffffffffffffffffffffff000000000000000000000000;
+    uint256 private constant MASK_POST_NEXT    = 0x0000000000000000000000000000000000000000ffffffff0000000000000000;
+    uint256 private constant MASK_POST_PAGE    = 0x000000000000000000000000000000000000000000000000ffffffff00000000;
+    uint256 private constant MASK_POST_OFFSET  = 0x00000000000000000000000000000000000000000000000000000000ffff0000;
+    uint256 private constant MASK_POST_LENGTH  = 0x000000000000000000000000000000000000000000000000000000000000ffff;
+
+    uint256 private constant FLAG_THREAD_PAGES_HEAD = 0x01;
+    uint256 private constant FLAG_THREAD_PAGES_TAIL = 0x02;
+    uint256 private constant FLAG_THREAD_POSTS_HEAD = 0x04;
+    uint256 private constant FLAG_THREAD_POSTS_TAIL = 0x08;
+    uint256 private constant FLAG_THREAD_NEXT       = 0x10;
+    uint256 private constant FLAG_THREAD_PREV       = 0x20;
+    uint256 private constant FLAG_THREAD_COUNT      = 0x40;
+    uint256 private constant FLAG_THREAD_OFFSET     = 0x80;
+
     // The maximum number of words that the content of a post can be.
     uint256 public maximumContentLength;
 
@@ -447,22 +468,41 @@ contract DChan {
         return id;
     }
 
+    // [ 0-20] address: Author
+    // [20-24]  uint32: Next
+    // [24-28]  uint32: Page
+    // [28-30]  uint16: Offset
+    // [30-32]  uint16: Length
     function packPost(
         uint256 value,
         address author,
         uint256 next,
-        uint256 pageID,
+        uint256 page,
         uint256 offset,
         uint256 length,
         uint256 flags
     ) public pure returns (uint256) {
-        // [ 0-20] address: Author
-        // [20-24]  uint32: Next
-        // [24-28]  uint32: Page
-        // [28-30]  uint16: Offset
-        // [30-32]  uint16: Length
+        if ((flags & FLAG_POST_AUTHOR) != 0) {
+            value = (value & ~MASK_POST_AUTHOR) | (uint256(author) << 96);
+        }
 
-        return 0;
+        if ((flags & FLAG_POST_NEXT) != 0) {
+            value = (value & ~MASK_POST_NEXT)   | (next << 64);
+        }
+
+        if ((flags & FLAG_POST_PAGE) != 0) {
+            value = (value & ~MASK_POST_PAGE)   | (page << 32);
+        }
+
+        if ((flags & FLAG_POST_OFFSET) != 0) {
+            value = (value & ~MASK_POST_OFFSET) | (offset << 16);
+        }
+
+        if ((flags & FLAG_POST_LENGTH) != 0) {
+            value = (value & ~MASK_POST_LENGTH) | length;
+        }
+
+        return value;
     }
 
     function packThread(
@@ -486,6 +526,7 @@ contract DChan {
         // [24-26] uint16: Count
         // [26-28] uint16: Offset
         // [28-32]       : Reserved
+
         return 0;
     }
 }
