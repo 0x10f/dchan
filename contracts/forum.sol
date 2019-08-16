@@ -1,11 +1,10 @@
 pragma solidity ^0.5.1;
 
 contract Forum {
-    uint32 private constant NULL_REF   = 0xffffffff;
+    uint32 private constant NULL_REF = 0xffffffff;
     bytes32 private constant NULL_WORD = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
 
-    // MaximumContentLength defines the maximum number of words that the content of
-    // a post can be.
+    // MaximumContentLength defines the maximum number of words that the content of a post can be.
     uint256 public maximumContentLength;
 
     // MaximumPages defines the current maximum number of pages that can exist.
@@ -14,8 +13,10 @@ contract Forum {
     // MaximumPosts defines the current maximum number of posts that can exist.
     uint256 public maximumPosts;
 
+    // Maximum threads defines the current maximum number of threads that can exist.
     uint256 public maximumThreads;
 
+    // Initialized is a flag used to indicate of the contract was initialized after being deployed.
     bool private initialized;
 
     // Init initializes the contract and marks that it is ready to be used.
@@ -63,6 +64,8 @@ contract Forum {
     // Queue is a generic structure used for singly or doubly linked lists. The
     // list assumes that the objects referred to in the queue use an 128 bit
     // identifier. This is to conserve gas when updating the queue references.
+    //
+    // TODO(271): Unrolling can decrease the gas cost in nested structs so this might be unneeded.
     struct Queue {
         uint32 head;
         uint32 tail;
@@ -109,9 +112,9 @@ contract Forum {
 
             // Initialize the page in memory and then copy it into storage.
             Page memory page = Page({
-                next: NULL_REF,
-                words: new bytes32[](maximumContentLength)
-            });
+                next : NULL_REF,
+                words : new bytes32[](maximumContentLength)
+                });
 
             for (uint256 j = 0; j < maximumContentLength; j++) {
                 page.words[j] = NULL_WORD;
@@ -200,7 +203,7 @@ contract Forum {
             Post memory post = Post({
                 next:   NULL_REF,
                 pageID: NULL_REF,
-                offset: NULL_REF,   // TODO
+                offset: NULL_REF, // TODO
                 length: NULL_REF
             });
 
@@ -248,6 +251,7 @@ contract Forum {
         uint32 postsTail;
         uint32 next;
         uint32 count;
+        uint32 offset;
     }
 
     // Posts are all of the posts that are contained within the contract.
@@ -256,6 +260,10 @@ contract Forum {
     // InitializedPageCount is a counter which is equal to the current number of threads
     // that have been initialized.
     uint256 initializedThreadCount;
+
+    // AllocatedThreads is a queue of all the threads that are currently being used with
+    // the least recent updated thread being at the top of the queue.
+    Queue allocatedThreads;
 
     // UnallocatedThreads is queue of all the threads that are currently not being used.
     Queue unallocatedThreads;
@@ -268,7 +276,6 @@ contract Forum {
             n = remaining;
         }
 
-        // TODO(271): Casting up to reduce gas costs.
         uint256 counter = initializedThreadCount;
 
         for (uint256 i = 0; i < n; i++) {
@@ -280,7 +287,8 @@ contract Forum {
                 postsHead: NULL_REF,
                 postsTail: NULL_REF,
                 next:      NULL_REF,
-                count:     NULL_REF
+                count:     NULL_REF,
+                offset:    0
             });
 
             threads[id] = thread;
@@ -320,48 +328,100 @@ contract Forum {
         return id;
     }
 
-    function publish(bytes32[] memory content) public {
-        require(content.length < maximumContentLength, "Content is too long.");
+    function publish(uint256 threadID, bytes32[] memory content) public {
+        require(content.length > 0, "Content is too short");
+        require(content.length <= maximumContentLength, "Content is too long.");
 
-        // TODO: Assuming post is to create a new thread.
-
-        // Allocate a new post that we can use to write the data to.
-        uint256 postID = allocatePost();
-        require(postID != NULL_REF, "Failed to allocate post.");
-
-        // Since we are creating a new thread we *must* allocate a page of memory.
-        uint256 pageID = allocateMemory();
-        require(pageID != NULL_REF, "Failed to allocate page.");
-
-        // Allocate and set the thread up by doing the following:
-        // - Initializing the page queue.
-        // - Initializing the post queue.
-        // - Initializing the post counter.
-        uint256 threadID = allocateThread();
-        require(threadID != NULL_REF, "Failed to allocate thread.");
+        // Check if we're creating a new thread, if we are then attempt to allocate a
+        // thread. Otherwise, check that the thread exists in the contract.
+        bool createThread = threadID == 0x0;
+        if (createThread) {
+            threadID = allocateThread();
+            require(threadID != NULL_REF, "Failed to allocate thread.");
+        } else {
+            require(threadID < initializedThreadCount, "Referenced thread does not exist.");
+        }
 
         Thread storage thread = threads[threadID];
 
-        thread.pagesHead = uint32(pageID);
-        thread.pagesTail = uint32(pageID);
-        thread.postsHead = uint32(postID);
-        thread.postsTail = uint32(postID);
-        thread.count = 1;
+        // Allocate a new post that we can append to the thread.
+        uint256 postID = allocatePost();
+        require(postID != NULL_REF, "Failed to allocate post.");
 
-        // Set the post up by doing the following:
-        // - Setting the page that the post occupies.
-        // - Setting the offset and length of the post in words.
         Post storage post = posts[postID];
 
-        post.pageID = uint32(pageID);
-        post.offset = 0;
-        post.length = uint32(content.length);
+        if (createThread) {
+            uint256 pageID = allocateMemory();
+            require(pageID != NULL_REF, "Failed to allocate memory.");
 
-        // Write the content to the page that the post occupies.
-        Page storage page = pages[pageID];
+            post.pageID = uint32(pageID);
+            post.offset = 0;
+            post.length = uint32(content.length);
 
-        for (uint256 i = 0; i < content.length; i++) {
-            page.words[i] = content[i];
+            thread.pagesHead = uint32(pageID);
+            thread.pagesTail = uint32(pageID);
+            thread.postsHead = uint32(postID);
+            thread.postsTail = uint32(postID);
+            thread.offset = uint32(content.length);
+            thread.count = 1;
+
+            Page storage page = pages[pageID];
+
+            for (uint256 i = 0; i < content.length; i++) {
+                page.words[i] = content[i];
+            }
+        } else {
+            Post storage postTail = posts[thread.postsTail];
+            postTail.next = uint32(postID);
+
+            uint256 pageOffset = thread.offset % maximumContentLength;
+
+            // Compute the remaining number of words in the most recently allocated page.
+            // Finish filling the page before requesting a new page be allocated.
+            uint256 write = maximumContentLength-pageOffset;
+            if (write > content.length) {
+                write = content.length;
+            }
+
+            for(uint256 i = 0; i < write; i++) {
+                pages[thread.pagesTail].words[pageOffset+i] = content[i];
+            }
+
+            // If the currently allocated page wasn't large enough to store the post
+            // then allocate a new page and write the remaining data.
+            if (write < content.length) {
+                uint256 splashID = allocateMemory();
+                require(splashID != NULL_REF, "Failed to allocate memory");
+
+                for (uint256 i = 0; i < content.length - write; i++) {
+                    pages[splashID].words[i] = content[write+i];
+                }
+
+                uint256 firstPageID = splashID;
+                if (write > 0) {
+                    firstPageID = thread.pagesTail;
+                }
+
+                post.pageID = uint32(firstPageID);
+                post.offset = uint32(pageOffset);
+                post.length = uint32(content.length);
+
+                Page storage pageTail = pages[thread.pagesTail];
+                pageTail.next = uint32(splashID);
+
+                thread.pagesTail = uint32(splashID);
+                thread.postsTail = uint32(postID);
+                thread.offset = uint32(thread.offset + content.length);
+                thread.count = uint32(thread.count + 1);
+            } else {
+                post.pageID = uint32(thread.postsTail);
+                post.offset = uint32(pageOffset);
+                post.length = uint32(content.length);
+
+                thread.postsTail = uint32(postID);
+                thread.offset = uint32(thread.offset + content.length);
+                thread.count = uint32(thread.count + 1);
+            }
         }
     }
 }
