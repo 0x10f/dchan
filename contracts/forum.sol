@@ -145,12 +145,11 @@ contract Forum {
     // its identifier. If a page could not be allocated then this function
     // returns NULL_PAGE.
     function allocateMemory() isInitialized private returns (uint128 id) {
-        if (unallocatedPages.head == NULL_REF) {
+        uint128 id = unallocatedPages.head;
+
+        if (id == NULL_REF) {
             return NULL_REF;
         }
-
-        // TODO(271): Determine if it is wise to set the next node.
-        uint128 id = unallocatedPages.head;
 
         if (id == unallocatedPages.tail) {
             unallocatedPages.head = NULL_REF;
@@ -228,12 +227,11 @@ contract Forum {
     }
 
     function allocatePost() isInitialized private returns (uint128 id) {
-        if (unallocatedPosts.head == NULL_REF) {
+        uint128 id = unallocatedPosts.head;
+
+        if (id == NULL_REF) {
             return NULL_REF;
         }
-
-        // TODO(271): Determine if it is wise to set the next node.
-        uint128 id = unallocatedPosts.head;
 
         if (id == unallocatedPosts.tail) {
             unallocatedPosts.head = NULL_REF;
@@ -307,12 +305,11 @@ contract Forum {
     }
 
     function allocateThread() isInitialized private returns (uint128 id) {
-        if (unallocatedThreads.head == NULL_REF) {
+        uint128 id = unallocatedThreads.head;
+
+        if (id == NULL_REF) {
             return NULL_REF;
         }
-
-        // TODO(271): Determine if it is wise to set the next node.
-        uint128 id = unallocatedThreads.head;
 
         if (id == unallocatedThreads.tail) {
             unallocatedThreads.head = NULL_REF;
@@ -343,6 +340,12 @@ contract Forum {
         // - Initializing the post counter.
         uint128 threadID = allocateThread();
         require(threadID != NULL_REF, "Failed to allocate thread.");
+
+        // 3 writes
+        // 2 writes
+        // 2 writes
+        // N writes
+        // = 7 writes = 35000 gas + 5000 = 40000~
 
         Thread storage thread = threads[threadID];
 
