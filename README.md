@@ -1,6 +1,6 @@
 # dchan
 
-A decentralized image board framework
+A decentralized imageboard framework
 
 ## Memory
 
