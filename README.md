@@ -23,8 +23,8 @@ Coniderations were made to use a LRU cache to garbage collect threads. However, 
 
 | Threads             | Gas Consumption     | Cost (USD ETH@$200) |
 |---------------------|---------------------|---------------------|
-|                   1 |               31743 |            $0.00634 |
-|                   2 |               53207 |            $0.01064 |
+|                   1 |               53207 |            $0.01064 |
+|                   2 |               73466 |            $0.01469 |
 
 ### Post (New Thread)
 
