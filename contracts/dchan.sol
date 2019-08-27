@@ -1,5 +1,7 @@
 contract DChan {
-    uint256 private constant NULL_REF = 0xffffff;
+    uint256 private constant NULL_REF    = 0xffffff;
+    uint256 private constant NULL_META   = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
+    bytes32 private constant NULL_DIGEST = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
 
     uint256 private constant FLAG_QUEUE_HEAD  = 0x1;
     uint256 private constant FLAG_QUEUE_TAIL  = 0x2;
@@ -33,7 +35,6 @@ contract DChan {
     uint256 private constant SHIFT_THREAD_PREV      = 208;
     uint256 private constant SHIFT_THREAD_POST_HEAD = 184;
     uint256 private constant SHIFT_THREAD_POST_TAIL = 160;
-    uint256 private constant SHIFT_THREAD_POST_TAIL = 144;
 
     struct Thread {
         uint256 meta;
@@ -45,13 +46,13 @@ contract DChan {
     }
 
     mapping(uint256 => Thread) private threads;
-    uint256 private threadCount;
+    uint256 private threadCounter = 1;
 
     uint256 private unallocatedThreads;
     uint256 private allocatedThreads;
 
     mapping(uint256 => Post) private posts;
-    uint256 private postCount;
+    uint256 private postCounter = 1;
 
     uint256 private unallocatedPosts;
 
@@ -61,20 +62,51 @@ contract DChan {
         unallocatedPosts   = encodeQueue(0, NULL_REF, NULL_REF, FLAG_QUEUE_HEAD | FLAG_QUEUE_TAIL);
     }
 
-    function initializeThreads(
-        uint256 n
-    )
+    function initializeThreads(uint256 n)
         public
     {
+        (uint256 head, uint256 tail) = decodeQueue(unallocatedThreads);
 
+        uint256 counter = threadCounter;
+        for (uint256 i = 0; i < n; i++) {
+            threads[counter] = Thread({
+                meta: NULL_META
+            });
+
+            if (head == NULL_REF) {
+                head = counter;
+            }
+            tail = counter;
+
+            counter++;
+        }
+
+        unallocatedThreads = encodeQueue(0, head, tail, FLAG_QUEUE_HEAD | FLAG_QUEUE_TAIL);
+        threadCounter = counter;
     }
 
-    function initializePosts(
-        uint256 n
-    )
+    function initializePosts(uint256 n)
         public
     {
+        (uint256 head, uint256 tail) = decodeQueue(unallocatedPosts);
 
+        uint256 counter = postCounter;
+        for (uint256 i = 0; i < n; i++) {
+            posts[counter] = Post({
+                digest: NULL_DIGEST,
+                meta:   NULL_META
+            });
+
+            if (head == NULL_REF) {
+                head = counter;
+            }
+            tail = counter;
+
+            counter++;
+        }
+
+        unallocatedPosts = encodeQueue(0, head, tail, FLAG_QUEUE_HEAD | FLAG_QUEUE_TAIL);
+        postCounter = counter;
     }
 
     function post(
@@ -109,7 +141,7 @@ contract DChan {
                     FLAG_THREAD_POST_TAIL |
                     FLAG_THREAD_COUNT
                 )
-            });
+                });
 
             posts[postID] = Post({
                 digest: digest,
@@ -119,10 +151,10 @@ contract DChan {
                     msg.sender,
                     digestFn,
                     digestSize,
-                    FLAGS_POST_NEXT        |
-                    FLAGS_POST_AUTHOR      |
-                    FLAGS_POST_DIGEST_FN   |
-                    FLAGS_POST_DIGEST_SIZE
+                    FLAG_POST_NEXT        |
+                    FLAG_POST_AUTHOR      |
+                    FLAG_POST_DIGEST_FN   |
+                    FLAG_POST_DIGEST_SIZE
                 )
             });
         } else {
@@ -152,18 +184,16 @@ contract DChan {
                     msg.sender,
                     digestFn,
                     digestSize,
-                    FLAGS_POST_NEXT        |
-                    FLAGS_POST_AUTHOR      |
-                    FLAGS_POST_DIGEST_FN   |
-                    FLAGS_POST_DIGEST_SIZE
+                    FLAG_POST_NEXT        |
+                    FLAG_POST_AUTHOR      |
+                    FLAG_POST_DIGEST_FN   |
+                    FLAG_POST_DIGEST_SIZE
                 )
             });
         }
     }
 
-    function decodeQueue(
-        uint256 value
-    )
+    function decodeQueue(uint256 value)
         public
         pure
         returns (uint256 head, uint256 tail)
@@ -267,7 +297,7 @@ contract DChan {
             uint256 digestSize
         )
     {
-        return (0, 0, 0, 0);
+        return (0, address(0), 0, 0);
     }
 
     function decodePostNext(
@@ -297,7 +327,6 @@ contract DChan {
 
     function allocateThread()
         private
-        view
         returns (uint256 id)
     {
         (uint256 head, uint256 tail) = decodeQueue(unallocatedThreads);
@@ -319,22 +348,17 @@ contract DChan {
 
     function allocatePost()
         private
-        view
         returns (uint256 id)
     {
         (uint256 head, uint256 tail) = decodeQueue(unallocatedPosts);
         require(head != NULL_REF);
-
-        if (head == NULL_REF) {
-            return NULL_REF;
-        }
 
         if (head == tail) {
             unallocatedPosts = encodeQueue(0, NULL_REF, NULL_REF, FLAG_QUEUE_HEAD | FLAG_QUEUE_TAIL);
         } else {
             unallocatedPosts = encodeQueue(
                 0,
-                decodeThreadNext(posts[head].meta),
+                decodePostNext(posts[head].meta),
                 tail,
                 FLAG_QUEUE_HEAD | FLAG_QUEUE_TAIL
             );
