@@ -15,24 +15,25 @@ Coniderations were made to use a LRU cache to garbage collect threads. However, 
 
 ### Allocate Posts
 
-| Posts               | Gas Consumption     | Cost (USD ETH@200$) |
+| Posts               | Gas Consumption     | Cost (USD ETH@$200) |
 |---------------------|---------------------|---------------------|
 |                   1 |                   0 |                   0 |
 
 ### Allocate Threads
 
-| Threads             | Gas Consumption     | Cost (USD ETH@200$) |
+| Threads             | Gas Consumption     | Cost (USD ETH@$200) |
 |---------------------|---------------------|---------------------|
-|                   1 |                   0 |                   0 |
+|                   1 |               31743 |            $0.00634 |
+|                   2 |               53207 |            $0.01064 |
 
 ### Post (New Thread)
 
-| Post Length (Words) | Gas Consumption     | Cost (USD ETH@200$) |
+| Post Length (Words) | Gas Consumption     | Cost (USD ETH@$200) |
 |---------------------|---------------------|---------------------|
 |                   1 |                   0 |                   0 |
 
 ### Post (Existing Thread)
 
-| Post Length (Words) | Gas Consumption     | Cost (USD ETH@200$) |
+| Post Length (Words) | Gas Consumption     | Cost (USD ETH@$200) |
 |---------------------|---------------------|---------------------|
 |                   1 |                   0 |                   0 |
