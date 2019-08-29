@@ -131,7 +131,6 @@ contract DChan {
             threads[threadID] = Thread({
                 meta: encodeThreadMetadata(
                     0,
-                    tail,
                     NULL_REF,
                     postID,
                     postID,
@@ -141,7 +140,7 @@ contract DChan {
                     FLAG_THREAD_POST_TAIL |
                     FLAG_THREAD_COUNT
                 )
-                });
+            });
 
             posts[postID] = Post({
                 digest: digest,
@@ -157,20 +156,38 @@ contract DChan {
                     FLAG_POST_DIGEST_SIZE
                 )
             });
-        } else {
-            (uint256 head, uint256 tail) = decodeQueue(allocatedThreads);
 
-            uint256 meta = threads[threadID].meta;
+            if (head == NULL_REF) {
+                allocatedThreads = encodeQueue(0, threadID, threadID, FLAG_QUEUE_HEAD | FLAG_QUEUE_TAIL);
+            } else {
+                allocatedThreads = encodeQueue(
+                    0,
+                    head,
+                    threadID,
+                    FLAG_QUEUE_HEAD | FLAG_QUEUE_TAIL
+                );
+
+                thread[tail] = Thread({
+                    meta: encodeThreadMetadata(
+                        threads[tail].meta,
+                        threadID,
+                        0,
+                        0,
+                        0,
+                        FLAG_THREAD_NEXT
+                    )
+                });
+            }
+        } else {
+            uint256 threadMeta = threads[threadID].meta;
 
             threads[threadID] = Thread({
                 meta: encodeThreadMetadata(
-                    meta,
-                    tail,
-                    NULL_REF,
+                    threadMeta,
+                    0,
                     0,
                     postID,
-                    1,
-                    FLAG_THREAD_NEXT      |
+                    decodeThreadCount(threadMeta) + 1,
                     FLAG_THREAD_POST_TAIL |
                     FLAG_THREAD_COUNT
                 )
@@ -190,6 +207,17 @@ contract DChan {
                     FLAG_POST_DIGEST_SIZE
                 )
             });
+
+            uint256 tail = decodeThreadPostTail(threadMeta);
+
+            posts[tail].meta = encodePostMetadata(
+                posts[tail].meta,
+                postID,
+                0,
+                0,
+                0,
+                FLAG_POST_NEXT
+            );
         }
     }
 
@@ -260,20 +288,18 @@ contract DChan {
     )
         public
         pure
-        returns (
-            uint256 next,
-            uint256 prev,
-            uint256 postsHead,
-            uint256 postsTail,
-            uint256 count
-        )
+        returns (uint256 next, uint256 postHead, uint256 postTail, uint256 count)
     {
-        return (0, 0, 0, 0, 0);
+        return (
+            (value & MASK_THREAD_NEXT)      >> SHIFT_THREAD_NEXT,
+            (value & MASK_THREAD_POST_HEAD) >> SHIFT_THREAD_POST_HEAD,
+            (value & MASK_THREAD_POST_TAIL) >> SHIFT_THREAD_POST_TAIL,
+            (value & MASK_THREAD_COUNT)     >> SHIFT_THREAD_COUNT
+        );
     }
 
     function encodeThreadMetadata(
         uint256 value,
-        uint256 prev,
         uint256 next,
         uint256 postHead,
         uint256 postTail,
@@ -284,20 +310,36 @@ contract DChan {
         pure
         returns (uint256 meta)
     {
-        return 0;
+        if ((flags & FLAG_THREAD_NEXT) != 0) {
+            value = (value & ~MASK_THREAD_NEXT) | (head << SHIFT_THREAD_NEXT);
+        }
+
+        if ((flags & FLAG_THREAD_POST_HEAD) != 0) {
+            value = (value & ~MASK_THREAD_POST_HEAD) | (tail << SHIFT_THREAD_POST_HEAD);
+        }
+
+        if ((flags & FLAG_THREAD_POST_TAIL) != 0) {
+            value = (value & ~MASK_THREAD_POST_TAIL) | (tail << SHIFT_THREAD_POST_TAIL);
+        }
+
+        if ((flags & FLAG_THREAD_COUNT) != 0) {
+            value = (value & ~MASK_THREAD_COUNT) | (tail << SHIFT_THREAD_COUNT);
+        }
+
+        return value;
     }
 
     function decodePostMetadata(uint256 value)
         public
         pure
-        returns (
-            uint256 next,
-            address author,
-            uint256 digestFn,
-            uint256 digestSize
-        )
+        returns (uint256 next, address author, uint256 digestFn, uint256 digestSize)
     {
-        return (0, address(0), 0, 0);
+        return (
+            (value & MASK_THREAD_NEXT)         >> SHIFT_THREAD_NEXT,
+            address((value & MASK_POST_AUTHOR) >> SHIFT_POST_AUTHOR),
+            (value & MASK_POST_DIGEST_FN)      >> SHIFT_POST_DIGEST_FN,
+            (value & MASK_POST_DIGEST_SIZE)    >> SHIFT_POST_DIGEST_SIZE
+        );
     }
 
     function decodePostNext(
@@ -330,7 +372,12 @@ contract DChan {
         returns (uint256 id)
     {
         (uint256 head, uint256 tail) = decodeQueue(unallocatedThreads);
-        require(head != NULL_REF);
+
+        if (head == NULL_REF) {
+            free();
+
+            // TODO
+        }
 
         if (head == tail) {
             unallocatedThreads = encodeQueue(0, NULL_REF, NULL_REF, FLAG_QUEUE_HEAD | FLAG_QUEUE_TAIL);
@@ -351,7 +398,12 @@ contract DChan {
         returns (uint256 id)
     {
         (uint256 head, uint256 tail) = decodeQueue(unallocatedPosts);
-        require(head != NULL_REF);
+
+        if (head == NULL_REF) {
+            free();
+
+            // TODO
+        }
 
         if (head == tail) {
             unallocatedPosts = encodeQueue(0, NULL_REF, NULL_REF, FLAG_QUEUE_HEAD | FLAG_QUEUE_TAIL);
@@ -365,5 +417,10 @@ contract DChan {
         }
 
         return head;
+    }
+
+    function free()
+        private
+    {
     }
 }
