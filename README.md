@@ -2,7 +2,9 @@
 
 A decentralized imageboard framework
 
-## IPFS
+## Notice
+
+With the upcoming changes coming with Istanbul the method of preallocating memory will become more costly than just writing new memory with the [EIP-2200](https://gist.github.com/karalabe/adc43c07db9f03be82093cd5466562b0), so effectively this project is dead in the water. We recommend you check out [0xChan](https://0xchan.net/) which is still under development as I am updating this README but will be released shortly. Thanks!
 
 ## Memory
 
